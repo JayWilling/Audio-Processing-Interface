@@ -33,6 +33,7 @@ class validator:
             filename = os.fsdecode(file)
             annotation = annotations_folder + filename.split(".")[0] + ".onsets"
             anno_path = Path(annotation)
+            # Grab audio filename and see if a matching annotation exists for it
             if Path.exists(anno_path):
                 if filename.endswith(".flac") or filename.endswith(".wav"):
                     # 1.1 Load audio into librosa and retrieve onsets
