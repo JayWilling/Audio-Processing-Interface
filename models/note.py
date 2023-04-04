@@ -1,6 +1,7 @@
 import scipy
 import numpy as np
 import librosa
+import pretty_midi
 
 class Note:
     def __init__(self,
@@ -10,7 +11,9 @@ class Note:
                  duration,
                  frequencyCurve,
                  sampleRate,
-                 loudness):
+                 loudness,
+                 timingLabel,
+                 idealOnset):
         self.time = time
         self.onset = onset
         self.offset = offset
@@ -18,6 +21,10 @@ class Note:
         self.frequencyCurve = frequencyCurve
         self.sampleRate = sampleRate
         self.loudness = loudness
+        self.matching = "unknown"
+        self.ground_truth = None
+        self.timingLabel = timingLabel
+        self.idealOnset = idealOnset
 
     def clean_frequency(self):
         # Note trimming
@@ -143,6 +150,12 @@ class Note:
     def get_avg_frequency(self):
         return np.nanmean(self.frequencyCurve)
 
+    def get_median_frequency(self):
+        return np.nanmedian(self.frequencyCurve)
+
+    def get_midi_note(self):
+        return round(librosa.hz_to_midi(self.get_median_frequency()))
+
     def get_cents(self):
         return self.cents
 
@@ -151,3 +164,35 @@ class Note:
 
     def get_avg_loudness(self):
         return np.nanmean(self.loudness)
+
+    '''
+    Timing labels are used to identify each given note as being on-time, early, or late with respect to the tempo
+    provided, and each subsequent note. This is not to outline discrepancies in timing with respect to the groundtruth.
+    It is expected that the user will identify errors in timing when reviewing visual feedback.
+    
+    As such, this approach emphasises: Tempo first, individual note duration second.
+    '''
+
+    def get_timing_label(self):
+        return self.timingLabel
+
+    def get_ideal_onset(self):
+        return self.idealOnset
+
+    def get_ideal_onset_seconds(self):
+        return librosa.frames_to_time(self.get_ideal_onset(), sr=self.sampleRate)
+
+    '''
+    Matching used to denote the correctness of a given note with respect to the ground truth
+    Potential values include:
+        - Correct       -> Pitch of the note was successfully matched
+        - Substitute    -> Pitch was incorrect
+        - Insertion     -> Unexpected note played
+        - Missed        -> Note in ground truth could not be matched
+    '''
+    def set_matching(self, new_matching, ground_truth = None):
+        self.matching = new_matching
+        self.ground_truth = ground_truth
+
+    def get_matching(self):
+        return self.matching

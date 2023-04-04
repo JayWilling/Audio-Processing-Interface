@@ -26,42 +26,35 @@ class Record_frame:
         self.initUI()
 
     def initUI(self):
-        song_entry_text = "Name of the piece (no spaces or special characters:"
+        song_entry_text = "1. Select the piece:"
         Label(self.parent, text=song_entry_text).grid(row=0, column=0, sticky=W, padx=5, pady=(10, 2))
 
-        # TEXTBOX TO PRINT PATH OF THE SOUND FILE
-        # Displays the output filename/location
-        self.songname = Entry(self.parent)
-        self.songname.focus_set()
-        self.songname["width"] = 25
-        self.songname.grid(row=1, column=0, sticky=W, padx=10)
-        self.songname.delete(0, END)
-        self.songname.insert(0, 'cmajorscale')
+        # Selector for the piece
+        #   Options to be pulled from the midi folder
+        self.piece_dropdown = customtkinter.CTkOptionMenu(master=self.parent, values=["cmajorscale", "danishroll", "chromaticscale"])
+        self.piece_dropdown.grid(row=1, column=0, sticky=W)
 
-        # TEXTBOX FOR INPUT OF INSTRUMENT BEING PLAYED
-        instrument_entry_text = "The instrument being played:"
-        Label(master=self.parent, text=instrument_entry_text).grid(row=2, column=0, sticky=W, padx=5, pady=(10,2))
-
-        self.instrument = Entry(self.parent)
-        self.instrument["width"] = 25
-        self.instrument.grid(row=3, column=0, sticky=W, padx=10)
-        self.instrument.delete(0, END)
-        self.instrument.insert(0, 'piano')
+        instrument_text = "2. Pick your instrument:"
+        Label(self.parent, text=instrument_text).grid(row=0, column=1, sticky=W, padx=5, pady=(10, 2))
+        # Selector for the instrument
+        #   Options restricted to piano and trumpet for now
+        self.instrument_dropdown = customtkinter.CTkOptionMenu(master=self.parent, values=["Trumpet", "Piano"])
+        self.instrument_dropdown.grid(row=1, column=1, sticky=W)
 
         # DISPLAY OF FILENAME/LOCATION OUTPUT
         filename_text = "Filename:"
-        Label(master=self.parent, text=filename_text).grid(row=4, column=0, sticky=W, padx=5, pady=(10,2))
+        Label(master=self.parent, text=filename_text).grid(row=2, column=0, sticky=W, padx=5, pady=(10,2))
 
         self.filename = Entry(self.parent)
         self.filename["width"] = 25
-        self.filename.grid(row=5, column=0, sticky=W, padx=10)
+        self.filename.grid(row=3, column=0, sticky=W, padx=10)
         self.filename.delete(0, END)
-        self.filename.insert(0, self.base_location + self.songname.get() + "-" + self.instrument.get() + ".wav")
+        self.filename.insert(0, self.base_location + self.piece_dropdown.get() + "-" + self.instrument_dropdown.get() + ".wav")
 
         # BUTTON TO RECORD AUDIO
         self.record = customtkinter.CTkButton(master=self.parent, text="Record", command=self.record_audio)
         # self.record = Button(master=self.parent, text="Record", command=self.record_audio)
-        self.record.grid(row=5, column=1, sticky=W, padx=(306, 6))
+        self.record.grid(row=4, column=1, sticky=W)
 
     def record_audio(self):
 
@@ -69,11 +62,11 @@ class Record_frame:
         # Save the file
         # Run analysis and save JSON file
 
-        self.recorder.start(self.songname.get(), self.instrument.get())
+        self.recorder.start(self.piece_dropdown.get(), self.instrument_dropdown.get())
 
-        recordingSaved = tkMessageBox.askyesno(title="Recording", message="Recording in progress.\nYes to stop and save recording.")
+        recording_saved = tkMessageBox.askyesno(title="Recording", message="Recording in progress.\nYes to stop and save recording.")
 
-        if recordingSaved:
+        if recording_saved:
             self.recorder.stop()
             self.recorder.analyse_audio()
             tkMessageBox.showinfo("opts", message="Audio recording saved successfully")

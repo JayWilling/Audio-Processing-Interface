@@ -48,6 +48,10 @@ class Analysis_frame:
         self.analyse_btn = Button(master=self.parent, text="Analyse", command=self.analyse_file)
         self.analyse_btn.grid(row=2, column=0, stick=W, padx=10)
 
+        # MATCH BUTTON
+        self.match_btn = Button(master=self.parent, text="Match", command=self.match_file)
+        self.match_btn.grid(row=3, column=0, stick=W, padx=10)
+
         # PLAY AUDIO BUTTON
         self.play_btn_txt = tkinter.StringVar()
         self.play_btn_txt.set("Play Audio")
@@ -110,3 +114,6 @@ class Analysis_frame:
             2.1 Parameters for the function in question are also saved to the JSON file
         """
         self.validator.bock_validation()
+
+    def match_file(self):
+        utils.transcription_alignment(utils.get_performance_record("audio/recordings/trumpet-b-major.wav"))

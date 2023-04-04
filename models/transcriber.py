@@ -1,6 +1,7 @@
 # import essentia.algorithms
 import librosa
 import librosa.display
+import numpy
 # import mir_eval.display
 # import numpy
 # import scipy
@@ -35,6 +36,7 @@ def detectOnsets(y, sr, filename = None, instrument = "Piano"):
                                                    units='samples',
                                                    backtrack=False,
                                                    delta=0.1,
+                                                   normalize=True,
                                                    pre_max=1, post_max=1, pre_avg=3, post_avg=5, wait=5)
     elif (instrument == "Trumpet"):
         onsetEnvelope = librosa.onset.onset_strength(y=y,
@@ -67,10 +69,10 @@ def detectOnsets(y, sr, filename = None, instrument = "Piano"):
     return onset_samples, onset_times, times, onsetEnvelope, silence
 
 
-def segmentationRetry(silence, onsets, f0, times, sr, loudness):
+def segmentationRetry(silence, onsets, f0, times, sr, loudness, newOnsets, timingLabels):
 
     noteList = []
-
+    idealOnsetIndex = 0
     noteStart = 0
     voicedEnd = 0
     inVoicedSegment = False
@@ -78,7 +80,12 @@ def segmentationRetry(silence, onsets, f0, times, sr, loudness):
     #
     # print("Loudness: ", (loudness[0]))
     # print("f0: ", (f0))
+
+    print("Silence:")
+    print(silence)
     for i in range(len(onsets)):
+
+        # First we can grab the timing label for the given onset
 
         # Within a voiced segment, onsets[i] is treated as the note offset
         if inVoicedSegment:
@@ -92,9 +99,9 @@ def segmentationRetry(silence, onsets, f0, times, sr, loudness):
                 noteTime = times[noteStart:voicedEnd]
                 duration = times[voicedEnd] - times[noteStart]
                 noteLoudness = loudness[noteStart:voicedEnd]
-                print(noteLoudness)
+                # print(noteLoudness)
                 newNote = Note(frequencyCurve=noteFrequency, onset=noteStart, offset=voicedEnd, duration=duration,
-                               time=noteTime, sampleRate=sr, loudness=noteLoudness)
+                               time=noteTime, sampleRate=sr, loudness=noteLoudness, idealOnset=newOnsets[idealOnsetIndex], timingLabel=timingLabels[idealOnsetIndex])
                 noteList.append(newNote)
 
                 # Adding the rest which follows
@@ -103,37 +110,43 @@ def segmentationRetry(silence, onsets, f0, times, sr, loudness):
                 noteTime = times[voicedEnd:silence[j]]
                 duration = times[silence[j]] - times[voicedEnd]
                 newNote = Note(frequencyCurve=noteFrequency, onset=voicedEnd, offset=silence[j], duration=duration,
-                               time=noteTime, sampleRate=sr, loudness=[])
+                               time=noteTime, sampleRate=sr, loudness=[], idealOnset=newOnsets[idealOnsetIndex], timingLabel=timingLabels[idealOnsetIndex])
                 noteList.append(newNote)
                 inVoicedSegment = False
             elif onsets[i] < voicedEnd:
                 # Onsets occurring before the end of the current voiced segment will have the same offset as the next
                 #   notes onset (legato notes)
                 noteFrequency = f0[noteStart:onsets[i]]
-                noteTime = times[noteStart:onsets[i]]
-                duration = times[onsets[i]] - times[noteStart]
-                noteLoudness = loudness[noteStart:onsets[i]]
-                print(noteLoudness)
-                newNote = Note(frequencyCurve=noteFrequency, onset=noteStart, offset=onsets[i], duration=duration,
-                               time=noteTime, sampleRate=sr, loudness=noteLoudness)
-                noteList.append(newNote)
+                # However, if the current note contains non-integer values for the frequency
+                # we can assume the previous note had a sharp offset and is not actually
+                # a note.
+                if not numpy.isnan(noteFrequency).all():
+                    noteTime = times[noteStart:onsets[i]]
+                    duration = times[onsets[i]] - times[noteStart]
+                    noteLoudness = loudness[noteStart:onsets[i]]
+                    # print(noteLoudness)
+                    newNote = Note(frequencyCurve=noteFrequency, onset=noteStart, offset=onsets[i], duration=duration,
+                                   time=noteTime, sampleRate=sr, loudness=noteLoudness, idealOnset=newOnsets[idealOnsetIndex], timingLabel=timingLabels[idealOnsetIndex])
+                    noteList.append(newNote)
                 # Check if we're up to the last onset
                 if (i < len(onsets) - 1):
                     noteStart = onsets[i]
+                    idealOnsetIndex = i
                 else:
                     noteFrequency = f0[onsets[i]:voicedEnd]
                     noteTime = times[onsets[i]:voicedEnd]
                     duration = times[voicedEnd] - times[onsets[i]]
                     noteLoudness = loudness[onsets[i]:voicedEnd]
-                    print(noteLoudness)
+                    # print(noteLoudness)
                     newNote = Note(frequencyCurve=noteFrequency, onset=onsets[i], offset=voicedEnd, duration=duration,
-                                   time=noteTime, sampleRate=sr, loudness=noteLoudness)
+                                   time=noteTime, sampleRate=sr, loudness=noteLoudness, idealOnset=newOnsets[idealOnsetIndex], timingLabel=timingLabels[idealOnsetIndex])
                     noteList.append(newNote)
         if not (inVoicedSegment):
             # Move onto the next voiced segment. Segmentation always starts here.
             if j < len(silence):
                 if onsets[i] >= silence[j]: # Obsolete: This check assumes "silence" may be detecting notes
                     inVoicedSegment = True
+                    idealOnsetIndex = i
                     noteStart = onsets[i]
                     if (j < len(silence)):
                         voicedEnd = silence[j + 1]
@@ -145,9 +158,9 @@ def segmentationRetry(silence, onsets, f0, times, sr, loudness):
                         noteTime = times[noteStart:voicedEnd]
                         duration = times[voicedEnd] - times[noteStart]
                         noteLoudness = loudness[noteStart:voicedEnd]
-                        print(noteLoudness)
+                        # print(noteLoudness)
                         newNote = Note(frequencyCurve=noteFrequency, onset=noteStart, offset=voicedEnd,
-                                       duration=duration, time=noteTime, sampleRate=sr, loudness=noteLoudness)
+                                       duration=duration, time=noteTime, sampleRate=sr, loudness=noteLoudness, idealOnset=newOnsets[idealOnsetIndex], timingLabel=timingLabels[idealOnsetIndex])
                         noteList.append(newNote)
 
     return noteList
@@ -204,44 +217,47 @@ def loudnessAnalysis(y, sr):
 
     return loudness, times
 
-def rhythmAnalysis(y, sr, onsetEnvelope, onset_times, noteDurations):
+def rhythmAnalysis(y, sr, onsetEnvelope, onset_times):
     # onsetTimingLabels:
     #   Allow us to identify each onset as 'Early, 'On-time', or 'Late'
     # timingThreshold:
     #   A threshold in frames of when a note falls out of time or off-tempo
+    print("Rhythm Analysis:")
     tempo, beats = librosa.beat.beat_track(y=y,
                                            sr=sr,
                                            onset_envelope=onsetEnvelope,
                                            hop_length=512)
     newOnsets = []
     onsetTimingLabels = []
-    timingThreshold = 1
+    timingThreshold = 0.3
     for i in onset_times:
         idx = (np.abs(beats - i)).argmin()
         newOnsets.append(beats[idx])
-        if i <= beats[idx] - timingThreshold:
-            onsetTimingLabels.append('Early')
-        elif i >= beats[idx] + timingThreshold:
+        print(i, beats[idx])
+        print(librosa.frames_to_time(i), librosa.frames_to_time(beats[idx]))
+        if i >= beats[idx] + timingThreshold:
             onsetTimingLabels.append('Late')
+        elif i <= beats[idx] - timingThreshold:
+            onsetTimingLabels.append('Early')
         else:
             onsetTimingLabels.append('On-time')
 
     # Estimate duration of each played note
-    roundedNoteDurations = []
-    durationAccuracy = 0.5
-    for i in range(len(noteDurations)):
-        noteTempo = 60 / noteDurations[i] # Estimate "bpm" for the note
-        r = (tempo/noteTempo) % durationAccuracy
-        # roundedNoteDurations.append(round(r))
-        if r <= (0.5*durationAccuracy):
-            roundedNoteDurations.append(tempo/noteTempo - r)
-        else:
-            roundedNoteDurations.append(tempo / noteTempo + durationAccuracy - r)
+    # roundedNoteDurations = []
+    # durationAccuracy = 0.5
+    # for i in range(len(noteDurations)):
+    #     noteTempo = 60 / noteDurations[i] # Estimate "bpm" for the note
+    #     r = (tempo/noteTempo) % durationAccuracy
+    #     # roundedNoteDurations.append(round(r))
+    #     if r <= (0.5*durationAccuracy):
+    #         roundedNoteDurations.append(tempo/noteTempo - r)
+    #     else:
+    #         roundedNoteDurations.append(tempo / noteTempo + durationAccuracy - r)
 
     # print(tempo)
     # print(noteDurations)
     # print(roundedNoteDurations)
-    return newOnsets, onsetTimingLabels, roundedNoteDurations
+    return newOnsets, onsetTimingLabels
 
 # Primary function of 'extractFeatures' is to perform note segmentation, estimate tempo,
 def extractFeatures(filename):
@@ -249,11 +265,14 @@ def extractFeatures(filename):
     y, sr = librosa.load(filename)
 
     # Pre-process the audio (Remove silence from start and end of recording)
-    # trimmed, trimIndex = librosa.effects.trim(y=y, top_db=20)
-    # y = y[trimIndex[0]:trimIndex[1]]
+    trimmed, trimIndex = librosa.effects.trim(y=y, top_db=20)
+    y = y[trimIndex[0]:trimIndex[1]]
 
     # Detect onsets within the recording
     onsets, onset_times, times, onsetEnvelope, silence = detectOnsets(y, sr)
+
+    # Estimate the tempo from the onsetEnvelope used
+    tempo, beats = librosa.beat.beat_track(onset_envelope=onsetEnvelope, sr=sr)
 
     # Calculating frequency curve with pYin
     f0, voiced_flag, voiced_probs = librosa.pyin(y,
@@ -265,18 +284,25 @@ def extractFeatures(filename):
     # Analyse loudness/intensity of performance and individual notes
     loudness = loudnessAnalysis(y=y, sr=sr)
 
+    # Analyse the timing of each note with respect to the average tempo
+    newOnsets, onsetTimingLabels = rhythmAnalysis(y, sr, onsetEnvelope, onset_times)
+
     # Segment the frequency curve into individual notes
     # Frequency, onsets, durations, loudness
     notes = segmentationRetry(silence=silence,
-             onsets=onset_times,
-             f0=f0,
-             times=times,
-             sr=sr,
-             loudness=loudness[0][0])
+                              onsets=onset_times,
+                              f0=f0,
+                              times=times,
+                              sr=sr,
+                              loudness=loudness[0][0],
+                              newOnsets=newOnsets,
+                              timingLabels=onsetTimingLabels)
 
     # Clean edges of the frequency curves for notes
+    # print("Transcribed notes: ")
     for note in notes:
         note.clean_frequency()
+        # print(note.get_midi_note())
 
     # D = np.abs(librosa.stft(y))
     # fig, ax = plt.subplots(nrows=2, sharex=True, figsize=(15, 10))
@@ -299,8 +325,8 @@ def extractFeatures(filename):
     #     intervals.append((note.get_onset_seconds(), note.get_offset_seconds()))
     #     frequencies.append(note.get_avg_frequency())
     # mir_eval.display.piano_roll(intervals=intervals, pitches=frequencies)
-
-    return notes
+    print("Tempo: ", tempo)
+    return notes, tempo
 
 # Additional function provided to return the relevant variables for algorithm validation
 def extractFeatures_validation(filename):

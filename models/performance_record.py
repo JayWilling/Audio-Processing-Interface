@@ -32,12 +32,24 @@ class Performance_record:
     def __init__(self,
                  filename,
                  note_list,
+                 gt_note_list,
+                 missed_note_indexes,
                  sampling_rate,
-                 date_time):
+                 date_time,
+                 tempo):
         self.filename = filename
         self.note_list = note_list
+        self.gt_note_list = gt_note_list
+        self.missed_note_indexes = missed_note_indexes
         self.sampling_rate = sampling_rate
         self.date_time = date_time
+        self.tempo = tempo
+
+        
+        temp_dev = []
+        for i in note_list:
+            temp_dev.append(i.get_onset_seconds() - i.get_ideal_onset_seconds())
+        self.average_deviation = np.mean(temp_dev)
 
     def toJSON(self):
         # encoded_obj = Performance_encoder.encode(o=self)
@@ -58,11 +70,27 @@ class Performance_record:
     def get_note_list(self):
         return self.note_list
 
+    def get_gt_note_list(self):
+        return self.gt_note_list
+
+    def set_gt_note_list(self, gt_note_list):
+        self.gt_note_list = gt_note_list
+
     def get_sampling_rate(self):
         return self.sampling_rate
 
     def get_date_time(self):
         return self.date_time
+
+    def get_tempo(self):
+        return self.tempo
+
+    # def get_note_counts(self):
+    #     correct = 0
+    #     substitute = 0
+    #     missed = 0
+    #     for note in self.note_list:
+
 
     def show_pianoroll(self):
         intervals = []

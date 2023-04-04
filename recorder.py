@@ -10,6 +10,7 @@ import wave as wave
 import models.transcriber as transcriber
 from models.performance_record import Performance_record
 import utils
+import tkinter
 
 class recorder:
     def __init__(self,
@@ -85,8 +86,10 @@ class recorder:
             print('Recording finished')
 
     def analyse_audio(self):
+
         print("Analysing recording - Please wait")
         utils.get_performance_record(str(self.filename) + ".wav")
+
         # c_time = os.path.getctime(self.filename + ".wav")
         # print(c_time)
         #
